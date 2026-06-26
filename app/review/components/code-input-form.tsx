@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCodeReview } from "../hooks/use-code-review";
+import { getErrorMessage } from "../utils/get-error-message";
 import { ReviewResults } from "./review-results";
 
 const PLACEHOLDER = `// Paste your code here — any language works.
@@ -17,17 +18,17 @@ function fetchUser(id) {
  */
 export function CodeInputForm(): React.ReactElement {
   const [code, setCode] = useState("");
-  const { submitReview, result, isLoading, error, reset } = useCodeReview();
+  const mutation = useCodeReview();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     if (!code.trim()) return;
-    await submitReview(code.trim());
+    await mutation.mutateAsync(code.trim());
   }
 
   function handleReset(): void {
     setCode("");
-    reset();
+    mutation.reset();
   }
 
   return (
@@ -45,9 +46,9 @@ export function CodeInputForm(): React.ReactElement {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder={PLACEHOLDER}
-            disabled={isLoading}
+            disabled={mutation.isPending}
             rows={14}
-            className="w-full font-mono text-sm border border-gray-300 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-60 resize-y"
+            className="w-full font-mono text-sm text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-lg p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-60 resize-y"
             aria-label="Code to review"
           />
           <p className="text-xs text-gray-400 mt-1 text-right">
@@ -58,13 +59,13 @@ export function CodeInputForm(): React.ReactElement {
         <div className="flex items-center gap-3">
           <button
             type="submit"
-            disabled={isLoading || !code.trim()}
+            disabled={mutation.isPending || !code.trim()}
             className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? "Analysing…" : "Review Code"}
+            {mutation.isPending ? "Analysing…" : "Review Code"}
           </button>
 
-          {(result ?? error) && (
+          {(mutation.data ?? mutation.error) && (
             <button
               type="button"
               onClick={handleReset}
@@ -76,8 +77,8 @@ export function CodeInputForm(): React.ReactElement {
         </div>
       </form>
 
-      {/* Loading skeleton */}
-      {isLoading && (
+      {/* Loading */}
+      {mutation.isPending && (
         <div
           role="status"
           aria-label="Analysing code"
@@ -89,18 +90,18 @@ export function CodeInputForm(): React.ReactElement {
       )}
 
       {/* Error */}
-      {error && !isLoading && (
+      {mutation.error && !mutation.isPending && (
         <div
           role="alert"
           className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700"
         >
           <strong className="font-semibold">Error: </strong>
-          {error}
+          {getErrorMessage(mutation.error)}
         </div>
       )}
 
       {/* Results */}
-      {result && !isLoading && <ReviewResults result={result} />}
+      {mutation.data && !mutation.isPending && <ReviewResults result={mutation.data} />}
     </div>
   );
 }

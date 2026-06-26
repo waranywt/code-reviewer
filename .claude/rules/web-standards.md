@@ -18,6 +18,7 @@ globs: "app/**/*.(ts|tsx), components/**/*.(ts|tsx)"
 - **Client-Side Fetching:** Always abstract asynchronous network calls inside a custom React hook leveraging **TanStack Query (`useQuery` / `useMutation`)**.
 - **Component Hygiene:** Never declare `useQuery`, `useMutation`, or raw `fetch()` blocks directly inline within a visual UI component view. They must be extracted to the feature's `hooks/` directory.
 - **Caching Updates:** Prefer calling `queryClient.invalidateQueries` inside mutation success side-effects by default to guarantee server-state alignment. Use `queryClient.setQueryData` explicitly for high-frequency user interface optimization or optimistic updates.
+- **No Manual Async State Tracking:** Custom hooks must never manage raw `useState` and `try/catch` boilerplate blocks to track loading booleans, error strings, or response payloads for network operations. Let TanStack Query natively handle state tracking (`mutation.isPending`, `mutation.error`, etc.) to eliminate code smell regressions.
 
 ## 4. Component Refactoring & Code Quality Limits
 - **Single Responsibility:** Every file must have one single responsibility. If a component handles both data layout and deep data formatting, break it up.

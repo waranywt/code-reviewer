@@ -32,12 +32,3 @@ export interface ReviewResult {
   summary: string;
 }
 
-/** Shape of the POST /review/api request body. */
-export interface ReviewRequest {
-  code: string;
-}
-
-/** Shape of the POST /review/api JSON response. */
-export type ReviewResponse =
-  | { success: true; result: ReviewResult }
-  | { success: false; error: string };
