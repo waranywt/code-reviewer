@@ -31,20 +31,50 @@ const ReviewStateAnnotation = Annotation.Root({
 export type ReviewState = typeof ReviewStateAnnotation.State;
 
 // ---------------------------------------------------------------------------
-// Anthropic client (created once, reused across invocations)
+// Tool schema — forces Claude to always return structured output.
+// Using tool_choice: { type: "tool" } eliminates all JSON parsing issues.
+// ---------------------------------------------------------------------------
+
+const ANALYSIS_TOOL: Anthropic.Messages.Tool = {
+  name: "submit_analysis",
+  description: "Submit the structured code review findings.",
+  input_schema: {
+    type: "object",
+    properties: {
+      issues: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            severity: { type: "string", enum: ["info", "warning", "critical"] },
+            category: {
+              type: "string",
+              enum: ["code-style", "potential-bug", "error-handling", "security"],
+            },
+            message: { type: "string" },
+            suggestion: { type: "string" },
+          },
+          required: ["severity", "category", "message", "suggestion"],
+        },
+      },
+      summary: { type: "string" },
+    },
+    required: ["issues", "summary"],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Anthropic client
 // ---------------------------------------------------------------------------
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-  }
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY environment variable is not set");
   return new Anthropic({ apiKey });
 }
 
 // ---------------------------------------------------------------------------
 // Node: analyze
-// Calls Claude to identify issues and produce a summary.
 // ---------------------------------------------------------------------------
 
 export async function analyzeNode(state: ReviewState): Promise<Partial<ReviewState>> {
@@ -54,30 +84,26 @@ export async function analyzeNode(state: ReviewState): Promise<Partial<ReviewSta
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
     system: ANALYSIS_SYSTEM_PROMPT,
+    tools: [ANALYSIS_TOOL],
+    tool_choice: { type: "tool", name: "submit_analysis" },
     messages: [{ role: "user", content: buildAnalysisUserMessage(state.code) }],
   });
 
-  const raw = (message.content[0] as { type: "text"; text: string }).text;
-
-  // Strip markdown fences Claude occasionally adds despite the prompt instruction.
-  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-
-  let parsed: { issues: ReviewIssue[]; summary: string };
-  try {
-    parsed = JSON.parse(stripped) as { issues: ReviewIssue[]; summary: string };
-  } catch {
-    throw new Error(`Agent returned invalid JSON: ${stripped}`);
+  const toolBlock = message.content.find((b) => b.type === "tool_use");
+  if (!toolBlock || toolBlock.type !== "tool_use") {
+    throw new Error("Analyze node did not receive a tool_use response block");
   }
 
+  const input = toolBlock.input as { issues: ReviewIssue[]; summary: string };
   return {
-    issues: parsed.issues ?? [],
-    summary: parsed.summary ?? "",
+    issues: input.issues ?? [],
+    summary: input.summary ?? "",
   };
 }
 
 // ---------------------------------------------------------------------------
 // Node: correct
-// Only reached when issues were found. Asks Claude for a corrected version.
+// Returns raw corrected code — no structured output needed.
 // ---------------------------------------------------------------------------
 
 async function correctNode(state: ReviewState): Promise<Partial<ReviewState>> {
@@ -102,10 +128,7 @@ async function correctNode(state: ReviewState): Promise<Partial<ReviewState>> {
     ],
   });
 
-  const correctedCode = (
-    message.content[0] as { type: "text"; text: string }
-  ).text.trim();
-
+  const correctedCode = (message.content[0] as { type: "text"; text: string }).text.trim();
   return { correctedCode };
 }
 
@@ -113,7 +136,6 @@ async function correctNode(state: ReviewState): Promise<Partial<ReviewState>> {
 // Conditional routing
 // ---------------------------------------------------------------------------
 
-/** Route to correction step only when issues were found. */
 function routeAfterAnalysis(state: ReviewState): "correct" | typeof END {
   return state.issues.length > 0 ? "correct" : END;
 }
@@ -145,7 +167,6 @@ const reviewAgent = graph.compile();
  */
 export async function runReviewAgent(code: string): Promise<ReviewResult> {
   const finalState = await reviewAgent.invoke({ code });
-
   return {
     originalCode: code,
     issues: finalState.issues,

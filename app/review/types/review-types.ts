@@ -17,6 +17,21 @@ export interface ReviewIssue {
   suggestion: string;
 }
 
+/** A single turn in the follow-up conversation between the user and the agent. */
+export interface ConversationTurn {
+  role: "user" | "agent";
+  message: string;
+  /** Present on agent turns when the agent revises the corrected code. */
+  updatedCode?: string | null;
+}
+
+/** Result returned by the follow-up agent after the user responds to a review. */
+export interface FollowUpResult {
+  agentMessage: string;
+  /** New corrected version if the agent agreed to update it, otherwise null. */
+  updatedCode: string | null;
+}
+
 /** The complete result returned by the review agent. */
 export interface ReviewResult {
   /** Original code that was submitted for review. */

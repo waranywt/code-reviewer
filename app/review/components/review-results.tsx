@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReviewResult } from "../types/review-types";
+import { FollowUpPanel } from "./follow-up-panel";
 import { IssueCard } from "./issue-card";
 
 interface ReviewResultsProps {
@@ -73,6 +74,12 @@ export function ReviewResults({ result }: ReviewResultsProps): React.ReactElemen
           </div>
         </div>
       )}
+      {/* Follow-up conversation */}
+      <FollowUpPanel
+        originalCode={result.originalCode}
+        issues={result.issues}
+        correctedCode={result.correctedCode}
+      />
     </section>
   );
 }

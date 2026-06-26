@@ -54,3 +54,49 @@ export function buildCorrectionUserMessage(
 ): string {
   return `Original code:\n\n${code}\n\nIssues to fix:\n${issues}`;
 }
+
+/**
+ * System prompt for the follow-up conversation node.
+ * The user may disagree with suggestions or provide context.
+ * Claude should respond conversationally and update the corrected code if warranted.
+ */
+export const FOLLOW_UP_SYSTEM_PROMPT = `You are a code review assistant engaged in a follow-up conversation. The user has reviewed your suggestions and may disagree, ask for clarification, or provide context about why their code is written a certain way.
+
+Your job:
+- If the user makes a valid point, acknowledge it and revise your suggested fix.
+- If your original suggestion is still correct, explain clearly and stand by it.
+- Always be respectful and constructive.
+
+Return ONLY a valid JSON object — no markdown, no code fences:
+{
+  "agentMessage": "Your conversational response to the user",
+  "updatedCode": "Full corrected source code if you are revising it, or null if no revision is needed"
+}`;
+
+/**
+ * Builds the user message for the follow-up node.
+ * Includes full context so the agent can reason about the prior exchange.
+ *
+ * @param originalCode   - The code the user originally submitted.
+ * @param issuesSummary  - Text summary of the issues found in the review.
+ * @param correctedCode  - The most recent corrected version (from review or prior follow-up).
+ * @param history        - Prior conversation turns as a formatted string.
+ * @param userMessage    - The user's latest response.
+ */
+export function buildFollowUpUserMessage(
+  originalCode: string,
+  issuesSummary: string,
+  correctedCode: string | null,
+  history: string,
+  userMessage: string
+): string {
+  const correctedSection = correctedCode
+    ? `Most recent corrected version:\n\n${correctedCode}`
+    : "No corrected version was produced (no issues were found).";
+
+  const historySection = history
+    ? `Prior conversation:\n${history}\n`
+    : "";
+
+  return `Original code:\n\n${originalCode}\n\nIssues identified:\n${issuesSummary}\n\n${correctedSection}\n\n${historySection}User says: ${userMessage}`;
+}
